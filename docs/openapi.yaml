@@ -1,0 +1,225 @@
+openapi: 3.1.0
+
+info:
+  title: Football Matches API
+  description: API для получения расписания и результатов футбольных матчей
+  version: 1.0.0
+
+servers:
+  - url: https://n8nforstudy.ru/webhook
+    description: Production-сервер n8n
+    
+paths:
+  /matches:
+    get:
+      summary: Получить футбольные матчи
+      description: Возвращает расписание и результаты выбранного турнира
+      operationId: getMatches
+
+      parameters:
+        - name: competition
+          in: query
+          required: true
+          description: Код футбольного турнира
+          schema:
+            type: string
+            enum:
+              - rpl
+              - epl
+          example: rpl
+
+      responses:
+        "200":
+          description: Матчи успешно получены
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Match"
+        "400":
+          description: Не указан обязательный параметр competition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MissingCompetitionError"
+        "404":
+          description: Передан неизвестный код турнира
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnknownCompetitionError"       
+
+components:
+  schemas:
+    Match:
+      type: object
+      description: Футбольный матч в едином нормализованном формате
+
+      required:
+        - externalId
+        - competition
+        - homeTeam
+        - awayTeam
+        - kickoffUtc
+        - status
+        - score
+
+      properties:
+        externalId:
+          type: string
+          description: Идентификатор матча с указанием источника
+          examplee: "highlightly:1328802393"
+
+        competition:
+          type: string
+          description: Код турнира
+          enum:
+            - rpl
+            - wc2026
+          examplee: rpl
+
+        round:
+          type:
+            - string
+            - "null"
+          description: Раунд или тур чемпионата
+          examplee: "17"
+
+        group:
+          type:
+            - string
+            - "null"
+          description: Группа турнира, если она предусмотрена
+          examplee: null
+
+        stage:
+          type: string
+          description: Этап проведения турнира
+          enum:
+            - LEAGUE
+            - GROUP
+            - PLAYOFF
+          examplee: LEAGUE
+
+        homeTeam:
+          type:
+            - string
+            - "null"
+          description: Название команды-хозяина
+          examplee: Akhmat Grozny
+
+        awayTeam:
+          type:
+            - string
+            - "null"
+          description: Название гостевой команды
+          examplee: Lokomotiv Moscow
+
+        kickoffUtc:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Дата и время начала матча в UTC
+          examplee: "2026-12-05T16:00:00.000Z"
+
+        status:
+          type: string
+          description: Нормализованный статус матча
+          enum:
+            - SCHEDULED
+            - LIVE
+            - FINISHED
+            - POSTPONED
+            - CANCELLED
+          examplee: SCHEDULED
+
+        score:
+          $ref: "#/components/schemas/Score"
+
+    Score:
+      type: object
+      description: Нормализованный счёт матча
+
+      required:
+        - fullTimeHome
+        - fullTimeAway
+        - extraTimeHome
+        - extraTimeAway
+        - penaltyWinner
+
+      properties:
+        fullTimeHome:
+          type:
+            - integer
+            - "null"
+          minimum: 0
+          description: Текущий счёт хозяев для LIVE или итоговый для FINISHED
+          examplee: null
+
+        fullTimeAway:
+          type:
+            - integer
+            - "null"
+          minimum: 0
+          description: Текущий счёт гостей для LIVE или итоговый для FINISHED
+          examplee: null
+
+        extraTimeHome:
+          type:
+            - integer
+            - "null"
+          minimum: 0
+          description: Голы хозяев в дополнительное время, если доступны
+          examplee: null
+
+        extraTimeAway:
+          type:
+            - integer
+            - "null"
+          minimum: 0
+          description: Голы гостей в дополнительное время, если доступны
+          examplee: null
+
+        penaltyWinner:
+          type:
+            - string
+            - "null"
+          description: Победитель серии пенальти, если доступен
+          examplee: null
+    MissingCompetitionError:
+      type: object
+      description: Ошибка отсутствующего параметра competition
+
+      required:
+        - error
+        - example
+
+      properties:
+        error:
+          type: string
+          examplee: "competition query parameter is required"
+
+        example:
+          type: string
+          examplee: "/matches?competition=rpl"
+
+
+    UnknownCompetitionError:
+      type: object
+      description: Ошибка неизвестного турнира
+
+      required:
+        - error
+        - competition
+
+      properties:
+        error:
+          type: string
+          examplee: "unknown competition"
+
+        competition:
+          type: string
+          description: Значение, полученное от клиента
+          examplee: wdc      
