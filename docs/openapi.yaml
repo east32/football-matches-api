@@ -10,7 +10,7 @@ info:
 
     - `rpl` — Российская Премьер-Лига;
     - `epl` — English Premier League;
-    - `uel` — UEFA Europa League.
+    - `eul` — UEFA Europa League.
 
     Ответом на успешный запрос является JSON-массив матчей выбранного
     турнира. Данные готовятся фоновым workflow и читаются из кэша PostgreSQL.
@@ -108,9 +108,9 @@ components:
         epl:
           summary: English Premier League
           value: epl
-        uel:
+        :
           summary: UEFA Europa League
-          value: uel
+          value: eul
 
   responses:
     MatchesResponse:
@@ -130,8 +130,8 @@ components:
               $ref: '#/components/examples/RplMatches'
             epl:
               $ref: '#/components/examples/EplMatches'
-            uel:
-              $ref: '#/components/examples/UelMatches'
+            eul:
+              $ref: '#/components/examples/eulMatches'
 
     BadRequest:
       description: Параметр competition отсутствует или не поддерживается
@@ -148,7 +148,7 @@ components:
                 allowedCompetitions:
                   - rpl
                   - epl
-                  - uel
+                  - eul
             unknownCompetition:
               summary: Неизвестный турнир
               value:
@@ -157,7 +157,7 @@ components:
                 allowedCompetitions:
                   - rpl
                   - epl
-                  - uel
+                  - eul
 
     Unauthorized:
       description: Заголовок X-API-Key отсутствует или содержит неверный ключ
@@ -196,8 +196,8 @@ components:
       enum:
         - rpl
         - epl
-        - uel
-      example: uel
+        - eul
+      example: eul
 
     MatchList:
       type: array
@@ -236,7 +236,7 @@ components:
           type: string
           description: |
             Тур или исходное человекочитаемое название раунда поставщика.
-            Для круговых лиг обычно содержит номер тура, для UEL — название
+            Для круговых лиг обычно содержит номер тура, для eul — название
             квалификационного или основного этапа.
           example: 3rd Qualifying Round
 
@@ -244,7 +244,7 @@ components:
           type: string
           nullable: true
           description: |
-            Буква или название группы. Для круговых лиг, общего этапа UEL
+            Буква или название группы. Для круговых лиг, общего этапа eul
             и плей-офф передаётся `null`.
           example: null
 
@@ -437,11 +437,11 @@ components:
             extraTimeAway: null
             penaltyWinner: null
 
-    UelMatches:
+    eulMatches:
       summary: Квалификационный матч UEFA Europa League
       value:
         - externalId: highlightly:1400000001
-          competition: uel
+          competition: eul
           round: 3rd Qualifying Round
           group: null
           stage: QUALIFYING
