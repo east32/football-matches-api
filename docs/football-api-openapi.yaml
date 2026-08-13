@@ -1,0 +1,457 @@
+openapi: 3.0.3
+
+info:
+  title: Football Matches API
+  version: 1.2.0
+  description: |
+    API расписания и результатов футбольных матчей.
+
+    Поддерживаемые турниры запрашиваются раздельно:
+
+    - `rpl` — Российская Премьер-Лига;
+    - `epl` — English Premier League;
+    - `uel` — UEFA Europa League.
+
+    Ответом на успешный запрос является JSON-массив матчей выбранного
+    турнира. Данные готовятся фоновым workflow и читаются из кэша PostgreSQL.
+    Время начала матча всегда передаётся в UTC.
+  contact:
+    name: Football API Support
+
+servers:
+  - url: https://n8nforstudy.ru
+    description: Production
+
+externalDocs:
+  description: Веб-версия расписания
+  url: https://n8nforstudy.ru/football/
+
+tags:
+  - name: Public
+    description: Публичное чтение расписания и результатов
+  - name: Partner
+    description: Чтение данных внешними сервисами по API-ключу
+
+paths:
+  /api/v1/matches:
+    get:
+      tags:
+        - Public
+      operationId: getPublicMatches
+      summary: Получить матчи одного турнира
+      description: |
+        Возвращает подготовленный массив матчей выбранного турнира.
+        За один запрос можно указать только один код `competition`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Competition'
+      responses:
+        '200':
+          $ref: '#/components/responses/MatchesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/CacheUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/partner/matches:
+    get:
+      tags:
+        - Partner
+      operationId: getPartnerMatches
+      summary: Получить матчи одного турнира для внешнего сервиса
+      description: |
+        Возвращает тот же нормализованный массив матчей, что и публичный
+        endpoint, но требует API-ключ в заголовке `X-API-Key`.
+
+        API-ключ должен храниться на backend или в credentials n8n и не должен
+        передаваться во frontend-коде или query-параметрах.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Competition'
+      responses:
+        '200':
+          $ref: '#/components/responses/MatchesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/CacheUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API-ключ внешнего сервиса
+
+  parameters:
+    Competition:
+      name: competition
+      in: query
+      required: true
+      description: |
+        Код турнира. Турниры запрашиваются раздельно; значение `all`
+        не поддерживается.
+      schema:
+        $ref: '#/components/schemas/Competition'
+      examples:
+        rpl:
+          summary: Российская Премьер-Лига
+          value: rpl
+        epl:
+          summary: English Premier League
+          value: epl
+        uel:
+          summary: UEFA Europa League
+          value: uel
+
+  responses:
+    MatchesResponse:
+      description: Массив матчей выбранного турнира
+      headers:
+        Content-Type:
+          description: Формат ответа
+          schema:
+            type: string
+            example: application/json
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MatchList'
+          examples:
+            rpl:
+              $ref: '#/components/examples/RplMatches'
+            epl:
+              $ref: '#/components/examples/EplMatches'
+            uel:
+              $ref: '#/components/examples/UelMatches'
+
+    BadRequest:
+      description: Параметр competition отсутствует или не поддерживается
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missingCompetition:
+              summary: Параметр не передан
+              value:
+                code: INVALID_COMPETITION
+                message: Параметр competition обязателен
+                allowedCompetitions:
+                  - rpl
+                  - epl
+                  - uel
+            unknownCompetition:
+              summary: Неизвестный турнир
+              value:
+                code: INVALID_COMPETITION
+                message: Турнир не поддерживается
+                allowedCompetitions:
+                  - rpl
+                  - epl
+                  - uel
+
+    Unauthorized:
+      description: Заголовок X-API-Key отсутствует или содержит неверный ключ
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: UNAUTHORIZED
+            message: API-ключ отсутствует или недействителен
+
+    CacheUnavailable:
+      description: Данные турнира пока отсутствуют в кэше
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: CACHE_UNAVAILABLE
+            message: Данные выбранного турнира временно недоступны
+
+    InternalError:
+      description: Внутренняя ошибка сервиса
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: INTERNAL_ERROR
+            message: Внутренняя ошибка сервиса
+
+  schemas:
+    Competition:
+      type: string
+      description: Код турнира
+      enum:
+        - rpl
+        - epl
+        - uel
+      example: uel
+
+    MatchList:
+      type: array
+      description: Матчи выбранного турнира
+      items:
+        $ref: '#/components/schemas/Match'
+
+    Match:
+      type: object
+      additionalProperties: false
+      required:
+        - externalId
+        - competition
+        - round
+        - group
+        - stage
+        - homeTeam
+        - awayTeam
+        - kickoffUtc
+        - status
+        - score
+      properties:
+        externalId:
+          type: string
+          minLength: 1
+          description: |
+            Уникальный стабильный идентификатор матча. Не меняется при
+            переносе времени, обновлении статуса или счёта и используется
+            клиентами для предотвращения дублей.
+          example: highlightly:1328797287
+
+        competition:
+          $ref: '#/components/schemas/Competition'
+
+        round:
+          type: string
+          description: |
+            Тур или исходное человекочитаемое название раунда поставщика.
+            Для круговых лиг обычно содержит номер тура, для UEL — название
+            квалификационного или основного этапа.
+          example: 3rd Qualifying Round
+
+        group:
+          type: string
+          nullable: true
+          description: |
+            Буква или название группы. Для круговых лиг, общего этапа UEL
+            и плей-офф передаётся `null`.
+          example: null
+
+        stage:
+          $ref: '#/components/schemas/Stage'
+
+        homeTeam:
+          type: string
+          minLength: 1
+          description: Человекочитаемое название команды хозяев
+          example: AS Roma
+
+        awayTeam:
+          type: string
+          minLength: 1
+          description: Человекочитаемое название команды гостей
+          example: Real Betis
+
+        kickoffUtc:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Дата и время начала матча в UTC в формате ISO 8601. Может быть
+            `null`, если новая дата перенесённого или отменённого матча ещё
+            не определена.
+          example: '2026-08-20T18:00:00Z'
+
+        status:
+          $ref: '#/components/schemas/MatchStatus'
+
+        score:
+          $ref: '#/components/schemas/Score'
+
+    Stage:
+      type: string
+      description: |
+        Нормализованная стадия турнира.
+
+        `LEAGUE` применяется к РПЛ и АПЛ. `QUALIFYING`, `LEAGUE_PHASE`
+        и стадии плей-офф применяются к UEFA Europa League.
+      enum:
+        - QUALIFYING
+        - LEAGUE_PHASE
+        - KNOCKOUT_PLAYOFF
+        - GROUP
+        - ROUND_OF_32
+        - ROUND_OF_16
+        - QUARTER_FINAL
+        - SEMI_FINAL
+        - THIRD_PLACE
+        - FINAL
+        - LEAGUE
+      example: QUALIFYING
+
+    MatchStatus:
+      type: string
+      description: Текущий нормализованный статус матча
+      enum:
+        - SCHEDULED
+        - LIVE
+        - FINISHED
+        - POSTPONED
+        - CANCELLED
+      example: SCHEDULED
+
+    Score:
+      type: object
+      additionalProperties: false
+      required:
+        - fullTimeHome
+        - fullTimeAway
+        - extraTimeHome
+        - extraTimeAway
+        - penaltyWinner
+      description: |
+        Счёт матча.
+
+        До начала матча, а также для перенесённого или отменённого матча,
+        все поля равны `null`. Во время LIVE `fullTimeHome` и `fullTimeAway`
+        могут содержать текущий счёт, если он доступен у поставщика.
+
+        Дополнительное время и пенальти возможны только в квалификационных
+        и плей-офф стадиях. Для `LEAGUE`, `GROUP` и `LEAGUE_PHASE` поля
+        дополнительного времени и победитель пенальти всегда равны `null`.
+      properties:
+        fullTimeHome:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: |
+            Текущий счёт хозяев для LIVE либо итоговый счёт хозяев в
+            основное время для FINISHED. До начала матча — `null`.
+          example: 2
+
+        fullTimeAway:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: |
+            Текущий счёт гостей для LIVE либо итоговый счёт гостей в
+            основное время для FINISHED. До начала матча — `null`.
+          example: 1
+
+        extraTimeHome:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: |
+            Счёт хозяев после дополнительного времени. Если дополнительного
+            времени не было или поставщик не передал счёт — `null`.
+          example: null
+
+        extraTimeAway:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: |
+            Счёт гостей после дополнительного времени. Если дополнительного
+            времени не было или поставщик не передал счёт — `null`.
+          example: null
+
+        penaltyWinner:
+          type: string
+          nullable: true
+          description: Победитель серии пенальти либо `null`
+          enum:
+            - HOME
+            - AWAY
+            - null
+          example: null
+
+    ErrorResponse:
+      type: object
+      description: Описание ошибки API
+      properties:
+        code:
+          oneOf:
+            - type: string
+            - type: integer
+          description: Машиночитаемый код ошибки
+          example: INVALID_COMPETITION
+        message:
+          type: string
+          description: Человекочитаемое описание ошибки
+          example: Турнир не поддерживается
+        allowedCompetitions:
+          type: array
+          description: Разрешённые коды турниров, если применимо
+          items:
+            $ref: '#/components/schemas/Competition'
+      additionalProperties: true
+
+  examples:
+    RplMatches:
+      summary: Матч Российской Премьер-Лиги
+      value:
+        - externalId: highlightly:1328797287
+          competition: rpl
+          round: '5'
+          group: null
+          stage: LEAGUE
+          homeTeam: Spartak Moscow
+          awayTeam: CSKA Moscow
+          kickoffUtc: '2026-08-15T15:00:00Z'
+          status: FINISHED
+          score:
+            fullTimeHome: 2
+            fullTimeAway: 1
+            extraTimeHome: null
+            extraTimeAway: null
+            penaltyWinner: null
+
+    EplMatches:
+      summary: Запланированный матч English Premier League
+      value:
+        - externalId: football-data:537001
+          competition: epl
+          round: '1'
+          group: null
+          stage: LEAGUE
+          homeTeam: Arsenal FC
+          awayTeam: Chelsea FC
+          kickoffUtc: '2026-08-21T19:00:00Z'
+          status: SCHEDULED
+          score:
+            fullTimeHome: null
+            fullTimeAway: null
+            extraTimeHome: null
+            extraTimeAway: null
+            penaltyWinner: null
+
+    UelMatches:
+      summary: Квалификационный матч UEFA Europa League
+      value:
+        - externalId: highlightly:1400000001
+          competition: uel
+          round: 3rd Qualifying Round
+          group: null
+          stage: QUALIFYING
+          homeTeam: Example United
+          awayTeam: Example City
+          kickoffUtc: '2026-08-13T18:00:00Z'
+          status: SCHEDULED
+          score:
+            fullTimeHome: null
+            fullTimeAway: null
+            extraTimeHome: null
+            extraTimeAway: null
+            penaltyWinner: null
