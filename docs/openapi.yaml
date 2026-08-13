@@ -10,7 +10,7 @@ info:
 
     - `rpl` — Российская Премьер-Лига;
     - `epl` — English Premier League;
-  https://east32.github.io/football-matches-api/  - `uel` — UEFA Europa League.
+    - `uel` — UEFA Europa League.
 
     Ответом на успешный запрос является JSON-массив матчей выбранного
     турнира. Данные готовятся фоновым workflow и читаются из кэша PostgreSQL.
@@ -108,7 +108,7 @@ components:
         epl:
           summary: English Premier League
           value: epl
-        :
+        uel:
           summary: UEFA Europa League
           value: uel
 
@@ -131,7 +131,7 @@ components:
             epl:
               $ref: '#/components/examples/EplMatches'
             uel:
-              $ref: '#/components/examples/uelMatches'
+              $ref: '#/components/examples/UelMatches'
 
     BadRequest:
       description: Параметр competition отсутствует или не поддерживается
@@ -236,7 +236,7 @@ components:
           type: string
           description: |
             Тур или исходное человекочитаемое название раунда поставщика.
-            Для круговых лиг обычно содержит номер тура, для uel — название
+            Для круговых лиг обычно содержит номер тура, для UEL — название
             квалификационного или основного этапа.
           example: 3rd Qualifying Round
 
@@ -244,7 +244,7 @@ components:
           type: string
           nullable: true
           description: |
-            Буква или название группы. Для круговых лиг, общего этапа uel
+            Буква или название группы. Для круговых лиг, общего этапа UEL
             и плей-офф передаётся `null`.
           example: null
 
@@ -437,7 +437,7 @@ components:
             extraTimeAway: null
             penaltyWinner: null
 
-    uelMatches:
+    UelMatches:
       summary: Квалификационный матч UEFA Europa League
       value:
         - externalId: highlightly:1400000001
